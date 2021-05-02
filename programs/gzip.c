@@ -38,6 +38,8 @@
 #  include <utime.h>
 #endif
 
+#define MAX_BUFFER_SIZE (1024 * 1024 * 16)
+
 struct options {
 	bool to_stdout;
 	bool decompress;
@@ -181,6 +183,11 @@ load_u32_gzip(const u8 *p)
 		((u32)p[2] << 16) | ((u32)p[3] << 24);
 }
 
+static int flush_buffers(void *data, void *buffer, size_t len) {
+	full_write((struct file_stream*)data, buffer, len);
+	return 0;
+}
+
 static int
 do_decompress(struct libdeflate_decompressor *decompressor,
 	      struct file_stream *in, struct file_stream *out)
@@ -188,7 +195,7 @@ do_decompress(struct libdeflate_decompressor *decompressor,
 	const u8 *compressed_data = in->mmap_mem;
 	size_t compressed_size = in->mmap_size;
 	void *uncompressed_data = NULL;
-	size_t uncompressed_size;
+	size_t uncompressed_buf_size;
 	size_t actual_in_nbytes;
 	size_t actual_out_nbytes;
 	enum libdeflate_result result;
@@ -207,13 +214,17 @@ do_decompress(struct libdeflate_decompressor *decompressor,
 	 * not be the largest; or the real size may be >= 4 GiB, causing ISIZE
 	 * to overflow.  In any case, make sure to allocate at least one byte.
 	 */
-	uncompressed_size = load_u32_gzip(&compressed_data[compressed_size - 4]);
-	if (uncompressed_size == 0)
-		uncompressed_size = 1;
+	uncompressed_buf_size = load_u32_gzip(&compressed_data[compressed_size - 4]);
+	if (uncompressed_buf_size == 0)
+		uncompressed_buf_size = 1;
+
+	if (uncompressed_buf_size > MAX_BUFFER_SIZE) {
+		uncompressed_buf_size = MAX_BUFFER_SIZE;
+	}
 
 	do {
 		if (uncompressed_data == NULL) {
-			uncompressed_data = xmalloc(uncompressed_size);
+			uncompressed_data = xmalloc(uncompressed_buf_size);
 			if (uncompressed_data == NULL) {
 				msg("%"TS": file is probably too large to be "
 				    "processed by this program", in->name);
@@ -226,41 +237,41 @@ do_decompress(struct libdeflate_decompressor *decompressor,
 						       compressed_data,
 						       compressed_size,
 						       uncompressed_data,
-						       uncompressed_size,
+						       uncompressed_buf_size,
 						       &actual_in_nbytes,
-						       &actual_out_nbytes);
+						       &actual_out_nbytes,
+							   flush_buffers, out);
 
 		if (result == LIBDEFLATE_INSUFFICIENT_SPACE) {
-			if (uncompressed_size * 2 <= uncompressed_size) {
+			if (uncompressed_buf_size * 2 <= uncompressed_buf_size) {
 				msg("%"TS": file corrupt or too large to be "
 				    "processed by this program", in->name);
 				ret = -1;
 				goto out;
 			}
-			uncompressed_size *= 2;
+			uncompressed_buf_size *= 2;
 			free(uncompressed_data);
 			uncompressed_data = NULL;
 			continue;
 		}
 
 		if (result != LIBDEFLATE_SUCCESS) {
-			msg("%"TS": file corrupt or not in gzip format",
-			    in->name);
+			msg("%"TS": file corrupt or not in gzip format %d",
+			    in->name, result);
 			ret = -1;
 			goto out;
 		}
 
 		if (actual_in_nbytes == 0 ||
-		    actual_in_nbytes > compressed_size ||
-		    actual_out_nbytes > uncompressed_size) {
+		    actual_in_nbytes > compressed_size) {
 			msg("Bug in libdeflate_gzip_decompress_ex()!");
 			ret = -1;
 			goto out;
 		}
 
-		ret = full_write(out, uncompressed_data, actual_out_nbytes);
-		if (ret != 0)
-			goto out;
+		// ret = full_write(out, uncompressed_data, actual_out_nbytes);
+		// if (ret != 0)
+		// 	goto out;
 
 		compressed_data += actual_in_nbytes;
 		compressed_size -= actual_in_nbytes;

@@ -37,7 +37,9 @@ libdeflate_zlib_decompress_ex(struct libdeflate_decompressor *d,
 			      const void *in, size_t in_nbytes,
 			      void *out, size_t out_nbytes_avail,
 			      size_t *actual_in_nbytes_ret,
-			      size_t *actual_out_nbytes_ret)
+			      size_t *actual_out_nbytes_ret,
+				  flush_buffer_func *flush_func,
+				  void *flush_data)
 {
 	const u8 *in_next = in;
 	const u8 * const in_end = in_next + in_nbytes;
@@ -73,7 +75,9 @@ libdeflate_zlib_decompress_ex(struct libdeflate_decompressor *d,
 	result = libdeflate_deflate_decompress_ex(d, in_next,
 					in_end - ZLIB_FOOTER_SIZE - in_next,
 					out, out_nbytes_avail,
-					&actual_in_nbytes, actual_out_nbytes_ret);
+					&actual_in_nbytes, actual_out_nbytes_ret,
+					flush_func,
+					flush_data);
 	if (result != LIBDEFLATE_SUCCESS)
 		return result;
 
@@ -104,5 +108,6 @@ libdeflate_zlib_decompress(struct libdeflate_decompressor *d,
 {
 	return libdeflate_zlib_decompress_ex(d, in, in_nbytes,
 					     out, out_nbytes_avail,
-					     NULL, actual_out_nbytes_ret);
+					     NULL, actual_out_nbytes_ret,
+						 NULL, NULL);
 }

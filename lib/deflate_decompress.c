@@ -320,6 +320,23 @@ do {									\
  */
 #define READ_U16() (tmp16 = get_unaligned_le16(in_next), in_next += 2, tmp16)
 
+
+
+#define FLUSH_BUFFER_OR_FAIL(cond) \
+do { \
+	if (flush_func != NULL && (out_next - (u8*)out > DEFLATE_MAX_MATCH_OFFSET * 2)) { \
+		flush_func(flush_data, out_start, out_next - out_start); \
+		tot_out_bytes += out_next - out_start; \
+		memmove(out, out_next - DEFLATE_MAX_MATCH_OFFSET, DEFLATE_MAX_MATCH_OFFSET); \
+		out_start = out_next = ((u8*)out) + DEFLATE_MAX_MATCH_OFFSET; \
+		if (cond) \
+			return LIBDEFLATE_INSUFFICIENT_SPACE; \
+	} \
+	else { \
+		return LIBDEFLATE_INSUFFICIENT_SPACE; \
+	} \
+} while (0)
+
 /*****************************************************************************
  *                              Huffman decoding                             *
  *****************************************************************************/
@@ -892,7 +909,9 @@ typedef enum libdeflate_result (*decompress_func_t)
 	(struct libdeflate_decompressor * restrict d,
 	 const void * restrict in, size_t in_nbytes,
 	 void * restrict out, size_t out_nbytes_avail,
-	 size_t *actual_in_nbytes_ret, size_t *actual_out_nbytes_ret);
+	 size_t *actual_in_nbytes_ret, size_t *actual_out_nbytes_ret,
+	 flush_buffer_func *flush_func,
+	 void *flush_data);
 
 #undef DEFAULT_IMPL
 #undef DISPATCH
@@ -912,7 +931,9 @@ static enum libdeflate_result
 dispatch(struct libdeflate_decompressor * restrict d,
 	 const void * restrict in, size_t in_nbytes,
 	 void * restrict out, size_t out_nbytes_avail,
-	 size_t *actual_in_nbytes_ret, size_t *actual_out_nbytes_ret);
+	 size_t *actual_in_nbytes_ret, size_t *actual_out_nbytes_ret,
+	 flush_buffer_func *flush_func,
+	 void *flush_data);
 
 static volatile decompress_func_t decompress_impl = dispatch;
 
@@ -921,7 +942,9 @@ static enum libdeflate_result
 dispatch(struct libdeflate_decompressor * restrict d,
 	 const void * restrict in, size_t in_nbytes,
 	 void * restrict out, size_t out_nbytes_avail,
-	 size_t *actual_in_nbytes_ret, size_t *actual_out_nbytes_ret)
+	 size_t *actual_in_nbytes_ret, size_t *actual_out_nbytes_ret,
+	 flush_buffer_func *flush_func,
+	 void *flush_data)
 {
 	decompress_func_t f = arch_select_decompress_func();
 
@@ -930,7 +953,7 @@ dispatch(struct libdeflate_decompressor * restrict d,
 
 	decompress_impl = f;
 	return (*f)(d, in, in_nbytes, out, out_nbytes_avail,
-		    actual_in_nbytes_ret, actual_out_nbytes_ret);
+		    actual_in_nbytes_ret, actual_out_nbytes_ret, flush_func, flush_data);
 }
 #else
 #  define decompress_impl DEFAULT_IMPL /* only one implementation, use it */
@@ -950,10 +973,12 @@ libdeflate_deflate_decompress_ex(struct libdeflate_decompressor * restrict d,
 				 const void * restrict in, size_t in_nbytes,
 				 void * restrict out, size_t out_nbytes_avail,
 				 size_t *actual_in_nbytes_ret,
-				 size_t *actual_out_nbytes_ret)
+				 size_t *actual_out_nbytes_ret,
+				 flush_buffer_func *flush_func,
+				 void *flush_data)
 {
 	return decompress_impl(d, in, in_nbytes, out, out_nbytes_avail,
-			       actual_in_nbytes_ret, actual_out_nbytes_ret);
+			       actual_in_nbytes_ret, actual_out_nbytes_ret, flush_func, flush_data);
 }
 
 LIBDEFLATEEXPORT enum libdeflate_result LIBDEFLATEAPI
@@ -964,7 +989,8 @@ libdeflate_deflate_decompress(struct libdeflate_decompressor * restrict d,
 {
 	return libdeflate_deflate_decompress_ex(d, in, in_nbytes,
 						out, out_nbytes_avail,
-						NULL, actual_out_nbytes_ret);
+						NULL, actual_out_nbytes_ret, 
+						NULL, NULL);
 }
 
 LIBDEFLATEEXPORT struct libdeflate_decompressor * LIBDEFLATEAPI

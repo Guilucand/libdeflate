@@ -35,9 +35,15 @@ static enum libdeflate_result ATTRIBUTES
 FUNCNAME(struct libdeflate_decompressor * restrict d,
 	 const void * restrict in, size_t in_nbytes,
 	 void * restrict out, size_t out_nbytes_avail,
-	 size_t *actual_in_nbytes_ret, size_t *actual_out_nbytes_ret)
+	 size_t *actual_in_nbytes_ret, size_t *actual_out_nbytes_ret,
+	 flush_buffer_func *flush_func,
+	 void *flush_data)
 {
 	u8 *out_next = out;
+	u8 *out_start = out;
+
+	size_t tot_out_bytes = 0;
+
 	u8 * const out_end = out_next + out_nbytes_avail;
 	const u8 *in_next = in;
 	const u8 * const in_end = in_next + in_nbytes;
@@ -199,7 +205,7 @@ next_block:
 
 		SAFETY_CHECK(len == (u16)~nlen);
 		if (unlikely(len > out_end - out_next))
-			return LIBDEFLATE_INSUFFICIENT_SPACE;
+			FLUSH_BUFFER_OR_FAIL(len > out_end - out_next);
 		SAFETY_CHECK(len <= in_end - in_next);
 
 		memcpy(out_next, in_next, len);
@@ -272,8 +278,10 @@ have_decode_tables:
 		REMOVE_BITS(entry & HUFFDEC_LENGTH_MASK);
 		if (entry & HUFFDEC_LITERAL) {
 			/* Literal  */
-			if (unlikely(out_next == out_end))
-				return LIBDEFLATE_INSUFFICIENT_SPACE;
+			if (unlikely(out_next == out_end)) {
+				/* Handle buffer flushing  */
+				FLUSH_BUFFER_OR_FAIL(out_next == out_end);
+			}
 			*out_next++ = (u8)(entry >> HUFFDEC_RESULT_SHIFT);
 			continue;
 		}
@@ -296,8 +304,9 @@ have_decode_tables:
 		STATIC_ASSERT(HUFFDEC_END_OF_BLOCK_LENGTH == 0);
 		if (unlikely((size_t)length - 1 >= out_end - out_next)) {
 			if (unlikely(length != HUFFDEC_END_OF_BLOCK_LENGTH))
-				return LIBDEFLATE_INSUFFICIENT_SPACE;
-			goto block_done;
+				FLUSH_BUFFER_OR_FAIL(length >= out_end - out_next + 1);
+			else
+				goto block_done;
 		}
 
 		/* Decode the match offset.  */
@@ -403,13 +412,18 @@ block_done:
 	/* Discard any readahead bits and check for excessive overread */
 	ALIGN_INPUT();
 
+	/* Flush buffer */
+	if (flush_func != NULL) {
+		flush_func(flush_data, out_start, out_next - out_start);
+	}
+
 	/* Optionally return the actual number of bytes read */
 	if (actual_in_nbytes_ret)
 		*actual_in_nbytes_ret = in_next - (u8 *)in;
 
 	/* Optionally return the actual number of bytes written */
 	if (actual_out_nbytes_ret) {
-		*actual_out_nbytes_ret = out_next - (u8 *)out;
+		*actual_out_nbytes_ret = tot_out_bytes + (out_next - out_start);
 	} else {
 		if (out_next != out_end)
 			return LIBDEFLATE_SHORT_OUTPUT;

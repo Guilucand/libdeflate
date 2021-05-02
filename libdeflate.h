@@ -170,6 +170,11 @@ libdeflate_free_compressor(struct libdeflate_compressor *compressor);
 struct libdeflate_decompressor;
 
 /*
+ * Function used to flush partial buffers
+ */
+typedef int flush_buffer_func(void *flush_data, void *buffer, size_t len);
+
+/*
  * libdeflate_alloc_decompressor() allocates a new decompressor that can be used
  * for DEFLATE, zlib, and gzip decompression.  The return value is a pointer to
  * the new decompressor, or NULL if out of memory.
@@ -254,7 +259,9 @@ libdeflate_deflate_decompress_ex(struct libdeflate_decompressor *decompressor,
 				 const void *in, size_t in_nbytes,
 				 void *out, size_t out_nbytes_avail,
 				 size_t *actual_in_nbytes_ret,
-				 size_t *actual_out_nbytes_ret);
+				 size_t *actual_out_nbytes_ret,
+				 flush_buffer_func *flush_func,
+				 void *flush_data);
 
 /*
  * Like libdeflate_deflate_decompress(), but assumes the zlib wrapper format
@@ -282,7 +289,9 @@ libdeflate_zlib_decompress_ex(struct libdeflate_decompressor *decompressor,
 			      const void *in, size_t in_nbytes,
 			      void *out, size_t out_nbytes_avail,
 			      size_t *actual_in_nbytes_ret,
-			      size_t *actual_out_nbytes_ret);
+			      size_t *actual_out_nbytes_ret,
+				  flush_buffer_func *flush_func,
+				  void *flush_data);
 
 /*
  * Like libdeflate_deflate_decompress(), but assumes the gzip wrapper format
@@ -310,7 +319,9 @@ libdeflate_gzip_decompress_ex(struct libdeflate_decompressor *decompressor,
 			      const void *in, size_t in_nbytes,
 			      void *out, size_t out_nbytes_avail,
 			      size_t *actual_in_nbytes_ret,
-			      size_t *actual_out_nbytes_ret);
+			      size_t *actual_out_nbytes_ret,
+				  flush_buffer_func *flush_func,
+				  void *flush_data);
 
 /*
  * libdeflate_free_decompressor() frees a decompressor that was allocated with

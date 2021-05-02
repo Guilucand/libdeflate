@@ -22,7 +22,9 @@ static const struct {
 			const void *in, size_t in_nbytes,
 			void *out, size_t out_nbytes_avail,
 			size_t *actual_in_nbytes_ret,
-			size_t *actual_out_nbytes_ret);
+			size_t *actual_out_nbytes_ret,
+			flush_buffer_func *flush_func,
+			void *flush_data);
 } codecs[] = {
 	{
 		.compress = libdeflate_deflate_compress,
@@ -112,7 +114,8 @@ tmain(int argc, tchar *argv[])
 		res = codecs[i].decompress_ex(d, compressed, compressed_nbytes,
 					      decompressed, original_nbytes,
 					      &actual_compressed_nbytes,
-					      &actual_decompressed_nbytes);
+					      &actual_decompressed_nbytes, 
+						  NULL, NULL);
 		ASSERT(res == LIBDEFLATE_SUCCESS);
 		ASSERT(actual_compressed_nbytes == compressed_nbytes);
 		ASSERT(actual_decompressed_nbytes == original_nbytes);
@@ -136,7 +139,8 @@ tmain(int argc, tchar *argv[])
 					      compressed_nbytes_total,
 					      decompressed, original_nbytes,
 					      &actual_compressed_nbytes,
-					      &actual_decompressed_nbytes);
+					      &actual_decompressed_nbytes,
+						  NULL, NULL);
 		ASSERT(res == LIBDEFLATE_SUCCESS);
 		ASSERT(actual_compressed_nbytes == compressed_nbytes);
 		ASSERT(actual_decompressed_nbytes == original_nbytes);

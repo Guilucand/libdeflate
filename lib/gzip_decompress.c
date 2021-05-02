@@ -32,12 +32,26 @@
 
 #include "libdeflate.h"
 
+struct flush_buffer_data {
+	flush_buffer_func *user_func;
+	void *user_data;
+	int crc;
+};
+static int flush_buffer_checksum(void *data, void *buffer, size_t len) {
+	struct flush_buffer_data *fdata = (struct flush_buffer_data*)data;
+	fdata->crc = libdeflate_crc32(fdata->crc, buffer, len);
+	return fdata->user_func(fdata->user_data, buffer, len);
+}
+
+
 LIBDEFLATEEXPORT enum libdeflate_result LIBDEFLATEAPI
 libdeflate_gzip_decompress_ex(struct libdeflate_decompressor *d,
 			      const void *in, size_t in_nbytes,
 			      void *out, size_t out_nbytes_avail,
 			      size_t *actual_in_nbytes_ret,
-			      size_t *actual_out_nbytes_ret)
+			      size_t *actual_out_nbytes_ret,
+				  flush_buffer_func *flush_func,
+				  void *flush_data)
 {
 	const u8 *in_next = in;
 	const u8 * const in_end = in_next + in_nbytes;
@@ -45,6 +59,8 @@ libdeflate_gzip_decompress_ex(struct libdeflate_decompressor *d,
 	size_t actual_in_nbytes;
 	size_t actual_out_nbytes;
 	enum libdeflate_result result;
+	struct flush_buffer_data fbd;
+	u32 crc;
 
 	if (in_nbytes < GZIP_MIN_OVERHEAD)
 		return LIBDEFLATE_BAD_DATA;
@@ -103,12 +119,24 @@ libdeflate_gzip_decompress_ex(struct libdeflate_decompressor *d,
 			return LIBDEFLATE_BAD_DATA;
 	}
 
+	/* Replace flush function to allow checksum computation */
+	if (flush_func != NULL) {
+		fbd.user_func = flush_func;
+		fbd.user_data = flush_data;
+		fbd.crc = 0;
+		flush_func = flush_buffer_checksum;
+		flush_data = &fbd;
+	}
+
+
 	/* Compressed data  */
 	result = libdeflate_deflate_decompress_ex(d, in_next,
 					in_end - GZIP_FOOTER_SIZE - in_next,
 					out, out_nbytes_avail,
 					&actual_in_nbytes,
-					actual_out_nbytes_ret);
+					actual_out_nbytes_ret,
+					flush_func,
+					flush_data);
 	if (result != LIBDEFLATE_SUCCESS)
 		return result;
 
@@ -120,8 +148,14 @@ libdeflate_gzip_decompress_ex(struct libdeflate_decompressor *d,
 	in_next += actual_in_nbytes;
 
 	/* CRC32 */
-	if (libdeflate_crc32(0, out, actual_out_nbytes) !=
-	    get_unaligned_le32(in_next))
+	if (flush_func == NULL) {
+		crc = libdeflate_crc32(0, out, actual_out_nbytes);
+	}
+	else {
+		crc = fbd.crc;
+	}
+
+	if (crc != get_unaligned_le32(in_next))
 		return LIBDEFLATE_BAD_DATA;
 	in_next += 4;
 
@@ -144,5 +178,6 @@ libdeflate_gzip_decompress(struct libdeflate_decompressor *d,
 {
 	return libdeflate_gzip_decompress_ex(d, in, in_nbytes,
 					     out, out_nbytes_avail,
-					     NULL, actual_out_nbytes_ret);
+					     NULL, actual_out_nbytes_ret,
+						 NULL, NULL);
 }
