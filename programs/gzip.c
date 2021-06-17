@@ -38,7 +38,7 @@
 #  include <utime.h>
 #endif
 
-#define MAX_BUFFER_SIZE (1024 * 1024 * 16)
+#define MAX_BUFFER_SIZE (262144)
 
 struct options {
 	bool to_stdout;

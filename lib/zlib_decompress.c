@@ -81,6 +81,7 @@ libdeflate_zlib_decompress_ex(struct libdeflate_decompressor *d,
 	if (result != LIBDEFLATE_SUCCESS)
 		return result;
 
+	// FIXME: Fix wrong crc with LIBDEFLATE_BAD_DATA on actual_out_nbytes_ret unset
 	if (actual_out_nbytes_ret)
 		actual_out_nbytes = *actual_out_nbytes_ret;
 	else
@@ -88,6 +89,7 @@ libdeflate_zlib_decompress_ex(struct libdeflate_decompressor *d,
 
 	in_next += actual_in_nbytes;
 
+	// FIXME: Add crc to batches
 	/* ADLER32  */
 	if (libdeflate_adler32(1, out, actual_out_nbytes) !=
 	    get_unaligned_be32(in_next))
