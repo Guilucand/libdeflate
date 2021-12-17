@@ -86,11 +86,11 @@ HARD_LINKS         := 1
 # Compiling for Windows with MinGW?
 ifneq ($(findstring -mingw,$(shell $(CC) -dumpmachine 2>/dev/null)),)
     STATIC_LIB_SUFFIX  := static.lib
-    SHARED_LIB         := libdeflate.dll
+    SHARED_LIB         := libdeflate-optmem.dll
     SHARED_LIB_SYMLINK :=
     SHARED_LIB_CFLAGS  :=
-    SHARED_LIB_LDFLAGS := -Wl,--out-implib,libdeflate.lib \
-                          -Wl,--output-def,libdeflate.def \
+    SHARED_LIB_LDFLAGS := -Wl,--out-implib,libdeflate-optmem.lib \
+                          -Wl,--output-def,libdeflate-optmem.def \
                           -Wl,--add-stdcall-alias
     PROG_SUFFIX        := .exe
     PROG_CFLAGS        := -static -municode
@@ -108,15 +108,15 @@ ifneq ($(findstring -mingw,$(shell $(CC) -dumpmachine 2>/dev/null)),)
 
 # macOS?
 else ifeq ($(shell uname),Darwin)
-   SHARED_LIB         := libdeflate.$(SOVERSION).dylib
-   SHARED_LIB_SYMLINK := libdeflate.dylib
+   SHARED_LIB         := libdeflate-optmem.$(SOVERSION).dylib
+   SHARED_LIB_SYMLINK := libdeflate-optmem.dylib
    SHARED_LIB_CFLAGS  := -fPIC
    SHARED_LIB_LDFLAGS := -install_name $(SHARED_LIB)
 
 # Linux, FreeBSD, etc.
 else
-   SHARED_LIB         := libdeflate.so.$(SOVERSION)
-   SHARED_LIB_SYMLINK := libdeflate.so
+   SHARED_LIB         := libdeflate-optmem.so.$(SOVERSION)
+   SHARED_LIB_SYMLINK := libdeflate-optmem.so
    SHARED_LIB_CFLAGS  := -fPIC
    SHARED_LIB_LDFLAGS := -Wl,-soname=$(SHARED_LIB)
 endif
@@ -163,7 +163,7 @@ DEFAULT_TARGETS :=
 
 #### Library
 
-STATIC_LIB := libdeflate$(STATIC_LIB_SUFFIX)
+STATIC_LIB := libdeflate-optmem$(STATIC_LIB_SUFFIX)
 
 LIB_CFLAGS += $(CFLAGS) -fvisibility=hidden -D_ANSI_SOURCE
 
@@ -358,7 +358,7 @@ clean:
 		lib/*.dllobj lib/*/*.dllobj \
 		programs/*.o programs/*.obj \
 		$(DEFAULT_TARGETS) $(TEST_PROGRAMS) programs/config.h \
-		libdeflate.lib libdeflate.def libdeflatestatic.lib \
+		libdeflate-optmem.lib libdeflate-optmem.def libdeflatestatic-optmem.lib \
 		.build-config
 
 realclean: clean
