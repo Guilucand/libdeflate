@@ -46,6 +46,7 @@ FUNCNAME(struct libdeflate_decompressor * restrict d,
 
 	u8 * const out_end = out_next + out_nbytes_avail;
 	const u8 *in_next = in;
+	const u8 *in_previous = NULL;
 	const u8 * const in_end = in_next + in_nbytes;
 	bitbuf_t bitbuf = 0;
 	unsigned bitsleft = 0;

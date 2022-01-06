@@ -324,11 +324,14 @@ do {									\
 
 #define FLUSH_BUFFER_OR_FAIL(cond) \
 do { \
-	if (flush_func != NULL && (out_nbytes_avail >= DEFLATE_MAX_MATCH_OFFSET * 2)) { \
+	if (in_previous == in_next) { \
+		return LIBDEFLATE_BAD_DATA; \
+	} else if (flush_func != NULL && (out_nbytes_avail >= DEFLATE_MAX_MATCH_OFFSET * 2)) { \
 		flush_func(flush_data, out_start, out_next - out_start); \
 		tot_out_bytes += out_next - out_start; \
 		memmove(out, out_next - DEFLATE_MAX_MATCH_OFFSET, DEFLATE_MAX_MATCH_OFFSET); \
 		out_start = out_next = ((u8*)out) + DEFLATE_MAX_MATCH_OFFSET; \
+		in_previous = in_next; \
 		if (cond) \
 			return LIBDEFLATE_INSUFFICIENT_SPACE; \
 	} \
